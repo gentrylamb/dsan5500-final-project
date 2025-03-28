@@ -1,0 +1,22 @@
+---
+title: "Cool Title"
+subtitle: "DSAN 5500: Data Structures, Objects, and Algorithms in Python"
+authors:
+  - name: Gentry Lamb
+    email: gjl53@georgetown.edu
+    affiliation: Georgetown University
+    corresponding: true
+df-print: kable
+bibliography: references.bib
+title-block-banner: assets/banner.png
+title-block-banner-color: "white"
+format:
+  html:
+    df-print: kable
+  pdf:
+    link-citations: true
+prefer-html: true
+---
+
+## Section
+This is a simple placeholder for the manuscript's main document [@knuth84].

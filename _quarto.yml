@@ -1,0 +1,17 @@
+project:
+  type: manuscript
+  output-dir: script/
+
+manuscript:
+  article: index.qmd
+
+format:
+  html:
+    df-print: kable
+  pdf: default
+
+execute:
+  freeze: true
+
+
+

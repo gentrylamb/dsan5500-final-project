@@ -8,7 +8,7 @@ authors:
     corresponding: true
 df-print: kable
 bibliography: references.bib
-title-block-banner: assets/banner.png
+title-block-banner: assets/banner.jpg
 title-block-banner-color: "white"
 format:
   html:
@@ -18,5 +18,14 @@ format:
 prefer-html: true
 ---
 
-## Section
-This is a simple placeholder for the manuscript's main document [@knuth84].
+## Abstract
+In the digital era, data-driven decision-making is paramount, particularly when managing large-scale information flows such as alerts, park activities, and visitor data from the U.S. National Park Service (NPS). However, these data are dispersed across multiple APIs and formats, creating inefficiencies in how updates are retrieved, processed, and utilized. This project presents a robust Extract-Transform-Load (ETL) pipeline built using Python and Prefect that consolidates and streamlines the acquisition, validation, and reporting of NPS data.
+
+The core aim of the pipeline is to support informed trip planning and monitoring of national parks through an automated, reproducible workflow. The pipeline extracts data from the NPS Alerts, Activities, and Parks endpoints, validates and transforms it using Pydantic and Pandera to ensure schema compliance, and loads the cleaned data into structured Markdown reports. These reports can be tailored by state or park, ranked by alert severity, and integrated with user-defined preferences.
+
+By leveraging Prefect for orchestration, the pipeline is modular and observable. Individual tasks are implemented as decorated functions with clear dependencies and Sphinx-style docstrings. The Prefect UI provides visibility into execution, making it easier to troubleshoot failures or analyze runtime. A completion artifact is generated as a Markdown file summarizing the execution duration and the number of parks processed.
+
+This ETL pipeline not only improves efficiency in handling NPS data, but also serves as a reusable framework for integrating other public APIs or expanding user interactivity (e.g., through web dashboards). The current implementation is a Minimum Viable Product (MVP) tailored to the scope of the semester, with a roadmap for scaling to real-time email alerts or a trip planner web app. Through this project, we demonstrate the power of automation, data validation, and orchestration to deliver high-value public information tools.
+
+## Introduction
+

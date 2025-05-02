@@ -102,7 +102,7 @@ Beyond processing and saving structured data, the pipeline also produces two fin
 
 The first artifact is a generated Markdown report, built by pulling insights from the processed park and alert data. This report includes several key summaries and visual highlights: the total number of alerts across all parks, a breakdown of the most common alert types, and a ranked list of parks experiencing the highest number of active alerts. It also includes detailed tables showing parks ranked on different metrics, with direct links to the park pages. Behind the scenes, generating this report required substantial data transformation like grouping, filtering, and summarizing. Functions like `aggregate_data()` and `get_top_sites()` were developed to handle these transformations cleanly and consistently. The final report is written to markdown using a custom function and is designed to be portable. It can be embedded directly into a website, emailed as part of a weekly digest, or converted into HTML or PDF for broader distribution. Since it is regenerated automatically whenever the pipeline runs, it provides accurate updates about conditions across the National Park system, without requiring manual reporting or analysis. Below is an example of this report.
 
-{{< include artifact.qmd >}}
+{{< include assets/artifact.qmd >}}
 
 ### Interactive Alert Map
 
@@ -144,4 +144,4 @@ Though this version focuses on alert summaries and basic park activity classific
 
 ### Complete Code
 
-{{< include flow_code.qmd >}}
+{{< include assets/flow_code.qmd >}}

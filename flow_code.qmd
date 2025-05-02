@@ -1,0 +1,965 @@
+---
+title: NPS Scraper - Full Code
+---
+
+```python
+# Libraries to extract api keys
+from google.colab import userdata
+
+# Get API keys
+prefect_api_key = userdata.get("PREFECT_API_KEY")
+nps_api_key = userdata.get("NPS_API_KEY")
+```
+
+```python
+%%capture
+!pip install prefect
+```
+
+```python
+!prefect cloud login -k "$prefect_api_key"
+```
+
+```python
+# Libraries used in extraction
+from pydantic import BaseModel, HttpUrl, field_validator, FilePath
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from prefect.task_runners import ThreadPoolTaskRunner
+from prefect.futures import wait
+from prefect import flow, task
+from typing import List
+import pandas as pd
+import requests
+import string
+import json
+import nltk
+
+# Download the VADER lexicon for sentiment analysis (quietly)
+nltk.download('vader_lexicon', quiet=True)
+
+# Define Pydantic model for parks
+class Park(BaseModel):
+    fullName: str | None
+    parkCode: str | None
+    states: str | List[str] | None
+    latitude: float | None
+    longitude: float | None
+    designation: str | None
+    url: HttpUrl | None
+
+    # Field validator to handle blank values for all fields
+    @field_validator('*', mode='before')
+    @classmethod
+    def clean_blanks(cls, value: str | float):
+        if value == '':
+            return None
+        return value
+
+# Define Pydantic model for activities
+class Activity(BaseModel):
+    parkCode: str | None
+    activity: List[str] | None
+
+    # Field validator to handle blank values for activity fields
+    @field_validator('*', mode='before')
+    @classmethod
+    def clean_blanks(cls, value: str | float):
+        if value == '':
+            return None
+        return value
+
+# Define Pydantic model for alerts
+class Alert(BaseModel):
+    title: str | None
+    description: str | None
+    parkCode: str | None
+    category: str | None
+    sentiment: float = None
+    severity: float = None
+    score: float = None
+
+    # Field validator to handle blank values for alert fields
+    @field_validator('*', mode='before')
+    @classmethod
+    def clean_blanks(cls, value: str | float):
+        if value == '':
+            return None
+        return value
+
+# Function to extract data from the NPS API
+def extract_NPS(endpoint: HttpUrl, verbose: bool = False) -> List[dict]:
+    """
+    Extract data from the NPS API.
+
+    Args:
+        endpoint (HttpUrl): The URL of the API endpoint to retrieve data from.
+        verbose (bool): A flag to print detailed information about the request.
+
+    Returns:
+        List[dict]: A list of dictionaries containing the API response data.
+    """
+    # Fetch data from the provided API endpoint
+    global nps_api_key
+    headers = {"X-Api-Key": nps_api_key}
+    response = requests.get(endpoint, headers=headers)
+    data = response.json()
+
+    # Print available data keys if verbose flag is set
+    if verbose:
+        print("Keys for request:\n", data.keys())
+        print("Keys for 'data':\n", data["data"][0].keys())
+
+    return data["data"]
+
+# Function to get park data from the API and return as validated objects
+@task
+def get_parks(parks_endpoint: HttpUrl, verbose: bool = False) -> List[Park]:
+    """
+    Retrieve park data from the NPS API and return it as validated Park objects.
+
+    Args:
+        parks_endpoint (HttpUrl): The URL endpoint for fetching park data.
+        verbose (bool): Flag to enable verbose logging of data retrieval.
+
+    Returns:
+        List[Park]: A list of validated Park Pydantic models.
+    """
+    parks_data = extract_NPS(parks_endpoint)
+    validated_parks = [Park(**park) for park in parks_data]
+
+    return validated_parks
+
+# Function to get alert data from the API and return as validated objects
+@task
+def get_alerts(alerts_endpoint: HttpUrl, verbose: bool = False) -> List[Alert]:
+    """
+    Retrieve alert data from the NPS API and return it as validated Alert objects.
+
+    Args:
+        alerts_endpoint (HttpUrl): The URL endpoint for fetching alert data.
+        verbose (bool): Flag to enable verbose logging of data retrieval.
+
+    Returns:
+        List[Alert]: A list of validated Alert Pydantic models.
+    """
+    alerts_data = extract_NPS(alerts_endpoint)
+    validated_alerts = [Alert(**alert) for alert in alerts_data]
+
+    return validated_alerts
+
+# Function to get activity data from the API, process it, and return as validated objects
+@task
+def get_activities(activities_endpoint: HttpUrl, verbose: bool = False) -> List[Activity]:
+    """
+    Retrieve activity data from the NPS API, process it into a long format,
+    and return it as validated Activity objects.
+
+    Args:
+        activities_endpoint (HttpUrl): The URL endpoint for fetching activity data.
+        verbose (bool): Flag to enable verbose logging of data retrieval.
+
+    Returns:
+        List[Activity]: A list of validated Activity Pydantic models.
+    """
+    activities_data = extract_NPS(activities_endpoint)
+    # Unpack activities into a long format DataFrame
+    df = pd.DataFrame([
+        {'activity': activity['name'], 'parkCode': park['parkCode']}
+        for activity in activities_data
+        for park in activity['parks']
+    ])
+    # Group activities by parkCode
+    df_grouped = df.groupby("parkCode")["activity"].agg(list).reset_index()
+    validated_activities = [Activity(**row) for row in df_grouped.to_dict(orient="records")]
+
+    return validated_activities
+
+# Function to transform alert data by calculating sentiment, severity, and score
+@task
+def transform_alerts(alert_list: List[Alert]) -> List[Alert]:
+    """
+    Transform alert data by calculating sentiment, severity, and score for each alert.
+
+    Args:
+        alert_list (List[Alert]): A list of Alert objects to be processed.
+
+    Returns:
+        List[Alert]: A list of transformed Alert objects with added sentiment, severity, and score attributes.
+    """
+    category_weights = {
+        'Caution': 1,
+        'Information': 0.5,
+        'Park Closure': 3,
+        'Danger': 5
+    }
+    # Initialize sentiment analysis
+    analyzer = SentimentIntensityAnalyzer()
+    # Calculate sentiment, severity, and score for each alert
+    for alert_obj in alert_list:
+        sentiment = analyzer.polarity_scores(alert_obj.description)['compound']
+        severity = category_weights.get(alert_obj.category, 0)
+        score = round(severity * (1 - sentiment), 3)
+        # Add computed attributes to the alert object
+        alert_obj.sentiment = sentiment
+        alert_obj.severity = severity
+        alert_obj.score = score
+
+    return alert_list
+
+# Function to load data into a file (acting as a database here)
+@task
+def load_into_db(data: List[BaseModel], db_fpath: FilePath) -> None:
+    """
+    Load a list of data (as Pydantic models) into a file.
+
+    Args:
+        data (List[BaseModel]): A list of Pydantic model objects to be saved.
+        db_fpath (FilePath): The file path where the data will be saved.
+
+    Returns:
+        None
+    """
+    with open(db_fpath, 'w') as outfile:
+        for item in data:
+            outfile.write(item.model_dump_json() + '\n')
+
+# Main function to scrape NPS data from multiple endpoints, process it, and save to files
+@flow(name="NPS Scraper") #, task_runner=ThreadPoolTaskRunner())
+def scrape_NPS(
+    parks_endpoint: str = "https://developer.nps.gov/api/v1/parks?limit=500",
+    alerts_endpoint: str = "https://developer.nps.gov/api/v1/alerts?limit=1000",
+    activities_endpoint: str = "https://developer.nps.gov/api/v1/activities/parks",
+    parks_filename: str = "extracted_parks.jsonl",
+    alerts_filename: str = "extracted_alerts.jsonl",
+    activities_filename: str = "extracted_activities.jsonl"
+) -> None:
+    """
+    Main flow to scrape NPS data, process it, and save it into files.
+
+    Args:
+        parks_endpoint (str): The endpoint for fetching park data.
+        alerts_endpoint (str): The endpoint for fetching alert data.
+        activities_endpoint (str): The endpoint for fetching activity data.
+        parks_filename (str): The filename where park data will be saved.
+        alerts_filename (str): The filename where alert data will be saved.
+        activities_filename (str): The filename where activity data will be saved.
+
+    Returns:
+        None
+    """
+    # Submit tasks concurrently
+    extracted_parks = get_parks(parks_endpoint)
+    extracted_alerts = get_alerts(alerts_endpoint)
+    extracted_activities = get_activities(activities_endpoint)
+
+    # Now transform alerts (depends on extracted_alerts being ready)
+    transformed_alerts = transform_alerts(extracted_alerts)
+
+    # Save the extracted and transformed data to separate files
+    load_into_db(extracted_parks, parks_filename)
+    load_into_db(transformed_alerts, alerts_filename)
+    load_into_db(extracted_activities, activities_filename)
+
+# Run the NPS scraping function
+scrape_NPS()
+```
+
+```python
+%%writefile NPS_scraper.py
+# Libraries used in extraction
+from pydantic import BaseModel, HttpUrl, field_validator, FilePath
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from prefect.task_runners import ThreadPoolTaskRunner
+from prefect.futures import wait
+from prefect import flow, task
+from typing import List
+import pandas as pd
+import requests
+import string
+import json
+import nltk
+
+# Download the VADER lexicon for sentiment analysis (quietly)
+nltk.download('vader_lexicon', quiet=True)
+
+# Define Pydantic model for parks
+class Park(BaseModel):
+    fullName: str | None
+    parkCode: str | None
+    states: str | List[str] | None
+    latitude: float | None
+    longitude: float | None
+    designation: str | None
+    url: HttpUrl | None
+
+    # Field validator to handle blank values for all fields
+    @field_validator('*', mode='before')
+    @classmethod
+    def clean_blanks(cls, value: str | float):
+        if value == '':
+            return None
+        return value
+
+# Define Pydantic model for activities
+class Activity(BaseModel):
+    parkCode: str | None
+    activity: List[str] | None
+
+    # Field validator to handle blank values for activity fields
+    @field_validator('*', mode='before')
+    @classmethod
+    def clean_blanks(cls, value: str | float):
+        if value == '':
+            return None
+        return value
+
+# Define Pydantic model for alerts
+class Alert(BaseModel):
+    title: str | None
+    description: str | None
+    parkCode: str | None
+    category: str | None
+    sentiment: float = None
+    severity: float = None
+    score: float = None
+
+    # Field validator to handle blank values for alert fields
+    @field_validator('*', mode='before')
+    @classmethod
+    def clean_blanks(cls, value: str | float):
+        if value == '':
+            return None
+        return value
+
+# Function to extract data from the NPS API
+def extract_NPS(endpoint: HttpUrl, verbose=False) -> List[dict]:
+    # Fetch data from the provided API endpoint
+    global nps_api_key
+    headers = {"X-Api-Key": nps_api_key}
+    response = requests.get(endpoint, headers=headers)
+    data = response.json()
+
+    # Print available data keys if verbose flag is set
+    if verbose:
+        print("Keys for request:\n", data.keys())
+        print("Keys for 'data':\n", data["data"][0].keys())
+
+    return data["data"]
+
+# Function to get park data from the API and return as validated objects
+@task
+def get_parks(parks_endpoint: HttpUrl, verbose=False) -> List[Park]:
+    parks_data = extract_NPS(parks_endpoint)
+    validated_parks = [Park(**park) for park in parks_data]
+
+    return validated_parks
+
+# Function to get alert data from the API and return as validated objects
+@task
+def get_alerts(alerts_endpoint: HttpUrl, verbose=False) -> List[Alert]:
+    alerts_data = extract_NPS(alerts_endpoint)
+    validated_alerts = [Alert(**alert) for alert in alerts_data]
+
+    return validated_alerts
+
+# Function to get activity data from the API, process it, and return as validated objects
+@task
+def get_activities(activities_endpoint: HttpUrl, verbose=False) -> List[Activity]:
+    activities_data = extract_NPS(activities_endpoint)
+    # Unpack activities into a long format DataFrame
+    df = pd.DataFrame([
+        {'activity': activity['name'], 'parkCode': park['parkCode']}
+        for activity in activities_data
+        for park in activity['parks']
+    ])
+    # Group activities by parkCode
+    df_grouped = df.groupby("parkCode")["activity"].agg(list).reset_index()
+    validated_activities = [Activity(**row) for row in df_grouped.to_dict(orient="records")]
+
+    return validated_activities
+
+# Function to transform alert data by calculating sentiment, severity, and score
+@task
+def transform_alerts(alert_list: List[Alert]) -> List[Alert]:
+    category_weights = {
+        'Caution': 1,
+        'Information': 0.5,
+        'Park Closure': 3,
+        'Danger': 5
+    }
+    # Initialize sentiment analysis
+    analyzer = SentimentIntensityAnalyzer()
+    # Calculate sentiment, severity, and score for each alert
+    for alert_obj in alert_list:
+        sentiment = analyzer.polarity_scores(alert_obj.description)['compound']
+        severity = category_weights.get(alert_obj.category, 0)
+        score = round(severity * (1 - sentiment), 3)
+        # Add computed attributes to the alert object
+        alert_obj.sentiment = sentiment
+        alert_obj.severity = severity
+        alert_obj.score = score
+
+    return alert_list
+
+# Function to load data into a file (acting as a database here)
+@task
+def load_into_db(data: List[BaseModel], db_fpath: FilePath) -> None:
+    with open(db_fpath, 'w') as outfile:
+        for item in data:
+            outfile.write(item.model_dump_json() + '\n')
+
+# Main function to scrape NPS data from multiple endpoints, process it, and save to files
+@flow(name="NPS Scraper") #, task_runner=ThreadPoolTaskRunner())
+def scrape_NPS(
+    parks_endpoint: str = "https://developer.nps.gov/api/v1/parks?limit=500",
+    alerts_endpoint: str = "https://developer.nps.gov/api/v1/alerts?limit=1000",
+    activities_endpoint: str = "https://developer.nps.gov/api/v1/activities/parks",
+    parks_filename: str = "extracted_parks.jsonl",
+    alerts_filename: str = "extracted_alerts.jsonl",
+    activities_filename: str = "extracted_activities.jsonl"
+) -> None:
+     # Submit tasks concurrently
+    extracted_parks = get_parks(parks_endpoint)
+    extracted_alerts = get_alerts(alerts_endpoint)
+    extracted_activities = get_activities(activities_endpoint)
+
+    # Now transform alerts (depends on extracted_alerts being ready)
+    transformed_alerts = transform_alerts(extracted_alerts)
+
+    # Save the extracted and transformed data to separate files
+    load_into_db(extracted_parks, parks_filename)
+    load_into_db(transformed_alerts, alerts_filename)
+    load_into_db(extracted_activities, activities_filename)
+
+
+if __name__ == "__main__":
+  scrape_NPS.serve(
+      name="NPS Scraper",
+      interval = (60*60*24) # once weekly
+)
+```
+
+```python
+!python NPS_scraper.py
+```
+
+```python
+# Import necessary libraries
+from prefect.artifacts import create_markdown_artifact, create_link_artifact
+from urllib.parse import urljoin
+from bs4 import BeautifulSoup
+from prefect import flow, task
+from pydantic import HttpUrl
+from typing import List
+import pandas as pd
+import datetime
+import requests
+import re
+# for map
+from branca.colormap import LinearColormap
+from folium.plugins import MarkerCluster
+from ftplib import FTP_TLS
+import folium
+
+# Function to load and merge the datasets (parks, alerts, and activities)
+@task
+def load_and_merge(
+        parks_file: str,
+        alerts_file: str,
+        activities_file: str
+    ) -> pd.DataFrame:
+    """
+    Loads and merges park, alert, and activity data from the specified JSONL files.
+
+    Args:
+        parks_file (str): Path to the parks data file (in JSONL format).
+        alerts_file (str): Path to the alerts data file (in JSONL format).
+        activities_file (str): Path to the activities data file (in JSONL format).
+
+    Returns:
+        pd.DataFrame: A merged DataFrame containing parks, alerts, and activities data.
+    """
+    # Read in the JSONL files containing parks, alerts, and activities data
+    parks_df = pd.read_json(parks_file, lines=True)
+    alerts_df = pd.read_json(alerts_file, lines=True)
+    activities_df = pd.read_json(activities_file, lines=True)
+
+    # Categorize the designations of parks
+    parks_df = categorize_designations(parks_df)
+
+    # Merge parks data with activities data based on park code
+    merged_df = pd.merge(parks_df, activities_df, on="parkCode", how="left")
+
+    # Merge the result with the alerts data
+    final_df = pd.merge(merged_df, alerts_df, on="parkCode", how="right")
+
+    # Return the final merged DataFrame
+    return final_df
+
+# Function to categorize parks based on their designations
+def categorize_designations(parks_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Categorizes parks based on their designations into predefined categories.
+
+    Args:
+        parks_df (pd.DataFrame): A DataFrame containing park data.
+
+    Returns:
+        pd.DataFrame: The input DataFrame with an added 'designation' column for park categories.
+    """
+    # Define the categories and corresponding designations
+    designation_categories = {
+        "National Park or Preserve": [
+            'National Park', 'National Parks', 'National Park & Preserve',
+            'National Preserve', 'National and State Parks'
+        ],
+        "Monument or Memorial": [
+            'National Monument', 'National Monument and Historic Shrine',
+            'National Memorial', 'National Monument & Preserve',
+            'Part of Statue of Liberty National Monument'
+        ],
+        "Historic or Cultural Site": [
+            'National Historic Site', 'National Historical Park',
+            'National Historical Park and Ecological Preserve',
+            'International Historic Site', 'National Historical Park and Preserve',
+            'Part of Colonial National Historical Park'
+        ],
+        "Water-Based or Natural Area": [
+            'National Seashore', 'National Lakeshore', 'National River',
+            'National Scenic River', 'National Scenic Riverway',
+            'National Scenic Riverways', 'National Recreational River',
+            'Scenic & Recreational River', 'National River & Recreation Area',
+            'National Recreation Area', 'International Park', 'Park'
+        ],
+        "Trail, Parkway, or Battlefield": [
+            'National Historic Trail', 'National Scenic Trail', 'Parkway',
+            'Memorial Parkway', 'National Battlefield',
+            'National Battlefield Park', 'National Military Park'
+        ]
+    }
+
+    # Create a mapping from designations to categories
+    designation_map = {
+        designation: category
+        for category, designations in designation_categories.items()
+        for designation in designations
+    }
+
+    # Apply the mapping to categorize the parks
+    parks_df['designation'] = parks_df['designation'].map(designation_map).fillna('Other')
+
+    # Return the updated parks DataFrame
+    return parks_df
+
+# Function to get the most common alert types from the alerts DataFrame
+def get_top_alert_types(df: pd.DataFrame) -> str:
+    """
+    Extracts the most common alert types from the provided DataFrame.
+
+    Args:
+        df (pd.DataFrame): A DataFrame containing alerts data.
+
+    Returns:
+        str: A markdown string representing the most common alert types and their counts.
+    """
+    top_alert_df = df['category'].value_counts().reset_index()
+    top_alert_df.columns = ['Category', 'Count']
+    top_alert_md = top_alert_df.to_markdown(index=False)
+    return top_alert_md
+
+# Function to get the top sites based on a specific metric (e.g., number of alerts or alert score)
+def get_top_sites(
+        df: pd.DataFrame,
+        by: str,
+        site_type: str,
+        top_n: int,
+        ascending: bool = False
+    ) -> str:
+    """
+    Retrieves the top N sites based on a specified metric (e.g., number of alerts or alert score).
+
+    Args:
+        df (pd.DataFrame): A DataFrame containing site data.
+        by (str): The metric column to sort by (e.g., 'num_alerts', 'score').
+        site_type (str): The type of sites to filter by (e.g., 'National Park').
+        top_n (int): The number of top sites to retrieve.
+        ascending (bool, optional): Whether to sort in ascending order (default is False).
+
+    Returns:
+        str: A markdown table of the top sites with the specified metric.
+    """
+    # Aggregate the data for the specified site type
+    agg_df = aggregate_data(df, site_type)
+
+    # Keep only relevant columns
+    keep_cols = ['fullName', 'states', 'url', 'sentiment', 'severity', by]
+    agg_df = agg_df[keep_cols]
+
+    # Sort the DataFrame based on the specified metric (ascending or descending)
+    sorted_df = agg_df.sort_values(by=by, ascending=ascending).head(top_n)
+
+    # Convert the sorted DataFrame to a markdown table
+    md_table = create_md_table(sorted_df, keep_cols)
+
+    return md_table
+
+# Function to aggregate alert data for a specific site type
+def aggregate_data(df: pd.DataFrame, site_type: str) -> pd.DataFrame:
+    """
+    Aggregates alert data for a specific site type and calculates average sentiment, severity,
+    total score, and the number of alerts.
+
+    Args:
+        df (pd.DataFrame): A DataFrame containing alerts data.
+        site_type (str): The site type to filter by (e.g., 'National Park').
+
+    Returns:
+        pd.DataFrame: A DataFrame containing aggregated alert data for the specified site type.
+    """
+    # Filter the DataFrame by the specified site type
+    df = df[df['designation'] == site_type]
+
+    # Aggregate the data (average sentiment, severity, total score, and number of alerts)
+    agg_df = df.groupby(['fullName', 'states', 'url']).agg({
+        'sentiment': 'mean',
+        'severity': 'mean',
+        'score': 'sum',
+        'fullName': 'size'
+    }).rename(columns={'fullName': 'num_alerts'}).reset_index()
+
+    # Normalize the score for readability
+    agg_df["score"] = round((agg_df["score"] - min(agg_df["score"])) / (max(agg_df["score"]) - min(agg_df["score"])), 4) * 100
+
+    return agg_df
+
+# Function to create a markdown table from the sorted DataFrame
+def create_md_table(sorted_df: pd.DataFrame, keep_cols: List[str]) -> str:
+    """
+    Converts the sorted DataFrame into a markdown table.
+
+    Args:
+        sorted_df (pd.DataFrame): The sorted DataFrame containing site data.
+        keep_cols (List[str]): The list of columns to include in the markdown table.
+
+    Returns:
+        str: A markdown-formatted table as a string.
+    """
+    # Map the column names to user-friendly names
+    rename_map = {
+        'fullName': 'Site Name',
+        'states': 'State(s)',
+        'url': 'Site Website',
+        'sentiment': 'Avg. Sentiment',
+        'severity': 'Avg. Severity',
+        'score': 'Alert Score',
+        'num_alerts': 'Number of Alerts'
+    }
+    rename_map = {k:v for k,v in rename_map.items() if k in keep_cols}
+
+    # Rename columns
+    sorted_df = sorted_df.rename(columns=rename_map).reset_index(drop=True)
+
+    # Set the index to start from 1 for display purposes
+    sorted_df.index = sorted_df.index + 1
+
+    # Convert the DataFrame to a markdown table
+    md_table = sorted_df.to_markdown()
+
+    return md_table
+
+# Function to get top images from a park website
+def get_top_images(park_url: HttpUrl) -> str:
+    """
+    Retrieves the top image from a park's website by scraping the HTML content.
+
+    Args:
+        park_url (HttpUrl): The URL of the park's website.
+
+    Returns:
+        str: HTML image tag containing the top image for the park.
+    """
+    # Fetch the webpage content
+    page_url = park_url
+    response = requests.get(page_url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # Find the div containing the background image
+    div = soup.find('div', class_='picturefill-background')
+    style = div.get('style')
+
+    # Extract the image URL from the style attribute
+    match_url = re.search(r"url\('(.*?)'\)", style)
+    relative_img_url = match_url.group(1)
+
+    # Build the full image URL and return HTML for embedding the image
+    full_img_url = urljoin('https://www.nps.gov', relative_img_url)
+    img_html = f"""<img src="{full_img_url}" alt="Image at Site" width="500">\n\n"""
+
+    return img_html
+
+# Function to get popular activities at top sites
+def get_top_activities(df: pd.DataFrame, site_type: str, top_n: int = 5) -> str:
+    """
+    Retrieves the most popular activities at the top sites based on alert scores.
+
+    Args:
+        df (pd.DataFrame): A DataFrame containing park and activity data.
+        site_type (str): The site type to filter by (e.g., 'National Park').
+        top_n (int, optional): The number of top activities to return (default is 5).
+
+    Returns:
+        str: A markdown string containing popular activities at top sites.
+    """
+    # Aggregate data to get the top parks based on the score
+    agg_df = aggregate_data(df, site_type)
+    top_parks = agg_df.sort_values("score").head(top_n)
+
+    # Filter the original DataFrame to get data for top parks
+    top_park_names = top_parks['fullName'].tolist()
+    top_df = df[df['fullName'].isin(top_park_names)][['fullName', 'url', 'activity']]
+
+    # Prepare markdown content for activities
+    activity_md = ""
+    for idx, row in top_df.iterrows():
+        activity_md += get_top_images(row['url'])
+        activity_md += f"### {row['fullName']}\n"
+        for acts in row['activity']:
+            activity_md += f"- {acts}\n"
+
+        activity_md += f"\n<br>\n<br>\n"
+
+    return activity_md
+
+# task function to generate the full report
+@task
+def load_into_report(
+        df: pd.DataFrame,
+        site_type: str,
+        top_n: int = 10
+    ) -> str:
+    """
+    Generates a markdown report summarizing the top alert types, sites with the most alerts,
+    sites with the highest alert scores, and popular activities at the top sites.
+
+    Args:
+        df (pd.DataFrame): The merged DataFrame containing parks, alerts, and activities data.
+        site_type (str): The type of sites to report on (e.g., 'National Park').
+        top_n (int, optional): The number of top sites to include in the report (default is 10).
+
+    Returns:
+        str: A markdown-formatted report as a string.
+    """
+    # Calculate the total number of alerts and current date
+    total_alerts = len(df)
+    date = datetime.datetime.now().strftime("%d-%b-%Y")
+
+    # Get the top alert types, top sites by number of alerts and alert score, and popular activities
+    top_alert_types= get_top_alert_types(df)
+    top_alert_sites = get_top_sites(df, 'num_alerts', site_type, top_n)
+    worst_score_sites = get_top_sites(df, 'score', site_type, top_n)
+    best_score_sites = get_top_sites(df, 'score', site_type, top_n, ascending=True)
+    top_activities = get_top_activities(df, site_type)
+
+    # Compile all results into a markdown report
+    report_md = f"""
+<img src="https://www.nps.gov/cabr/blogs/images/Arrowhead_3.png" alt="NPS Logo" width="200" align="right">
+
+# NPS Scraping Report
+
+**Report Date:** {date}
+
+**Total Alerts Collected:** {total_alerts}
+
+**Site Type:** {site_type}
+
+<br><br>
+
+## ⚠️ Most Common Alert Types
+
+The most frequently occurring alert types were:
+
+{top_alert_types}
+
+<br><br>
+
+## ❗ {site_type} with the Most Alerts
+
+{top_alert_sites}
+
+<br><br>
+
+## 🚫 {site_type} with Highest Alert Scores
+
+Using a scoring system that adjusts for both alert type and sentiment, we’ve identified the {top_n} sites currently facing the most serious issues:
+
+{worst_score_sites}
+
+<br><br>
+
+## ✅ {site_type} with Highest Alert Scores
+
+Conversely, these {top_n} sites are currently facing the fewest and least serious issues:
+
+{best_score_sites}
+
+<br><br>
+
+## 🥾 Popular Activities at Top {site_type}
+
+{top_activities}
+"""
+
+    create_markdown_artifact(
+        markdown=report_md,
+        key="nps-report",
+        description="Report from todays run of the NPS Scraper"
+    )
+
+def map_parks(df: pd.DataFrame, map_filename: str) -> str:
+    """
+    Generates a folium map visualizing the parks with alert scores, including markers and a colormap.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing park and alert data.
+        map_filename (str): The filename to save the generated map as an HTML file.
+
+    Returns:
+        str: The filename of the saved map.
+    """
+    # clean df
+    df_clean = df.dropna(subset=["latitude", "longitude", "score"])
+    # Create custom green-to-red color scale
+    min_score = df_clean['score'].min()
+    max_score = df_clean['score'].max()
+    colormap = LinearColormap(
+        colors=['green', 'yellow', 'red'],
+        vmin=min_score,
+        vmax=max_score,
+        caption='Alert Score (Green = Low, Red = High)'
+    )
+
+    # Create folium map centered on the U.S.
+    m = folium.Map(location=[39.8283, -98.5795], zoom_start=4)
+    marker_cluster = MarkerCluster().add_to(m)
+
+    for _, row in df_clean.iterrows():
+        color = colormap(row['score'])
+        popup_html = f"""
+        <b><a href='{row['url']}' target='_blank'>{row['fullName']}</a></b><br>
+        <i>{row['designation']}</i><br>
+        <b>State(s):</b> {row['states']}<br>
+        <b>Category:</b> {row['category']}<br>
+        <b>Sentiment:</b> {row['sentiment']}<br>
+        <b>Severity:</b> {row['severity']}<br>
+        <b>Score:</b> {row['score']}<br>
+        <b>Description:</b><br>{row['description']}
+        """
+        folium.CircleMarker(
+            location=[row['latitude'], row['longitude']],
+            radius=5,
+            popup=folium.Popup(popup_html, max_width=300),
+            tooltip=row['fullName'],
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.7,
+        ).add_to(marker_cluster)
+
+    # Add the colormap to the map
+    colormap.add_to(m)
+
+    # Save the map to an HTML file
+    m.save(map_filename)
+    return map_filename
+
+def upload_to_ftp(file_name: str) -> str:
+    """
+    Uploads the generated map HTML file to an FTP server.
+
+    Args:
+        file_name (str): The name of the file to upload.
+
+    Returns:
+        str: The host URL of the FTP server where the file was uploaded.
+    """
+    # Get FTP credentials (assuming 'userdata' is defined somewhere in your code)
+    ftp_host = userdata.get("FTP_HOST")
+    ftp_user = userdata.get("FTP_USER")
+    ftp_pass = userdata.get("FTP_PASS")
+
+    try:
+        # Connect to FTP server with TLS (secure connection)
+        ftp = FTP_TLS(ftp_host)
+        ftp.login(ftp_user, ftp_pass)
+
+        # Secure the connection
+        ftp.prot_p()
+
+        # Change to the public_html/5500-project directory
+        ftp.cwd('public_html/5500-project')
+
+        # Open file and upload
+        with open(file_name, 'rb') as file:
+            ftp.storbinary(f"STOR {file_name}", file)
+
+        ftp.quit()
+        print(f"Successfully uploaded {file_name} to {ftp_host}")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    return ftp_host
+
+
+# task function to create map
+@task
+def generate_and_upload_map(df: pd.DataFrame, map_filename: str) -> None:
+    """
+    Generates the map and uploads it to the FTP server.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing park and alert data.
+        map_filename (str): The filename for the map to be generated and uploaded.
+    """
+    # Generate the map and save it as an HTML file
+    map_filename = map_parks(df, map_filename)
+
+    # Upload the generated map to the FTP server
+    host = upload_to_ftp(map_filename)
+    # create link for the saved map
+    map_link = 'https://'+ host + '/5500-project/'+ map_filename
+    # make it an artifact
+    create_link_artifact(
+        link=map_link,
+        key="nps-map",
+        description="Map from todays run of the NPS Scraper"
+    )
+
+# flow to generate report and map
+@flow(name="NPS Report")
+def generate_report(
+        site_type: str = "National Park or Preserve",
+        parks_filepath: str = "extracted_parks.jsonl",
+        alerts_filepath: str = "extracted_alerts.jsonl",
+        activities_filepath: str = "extracted_activities.jsonl",
+        map_filename: str = "map.html"
+    ) -> None:
+    """
+    Orchestrates the process of loading data, generating a report, and creating a map.
+
+    Args:
+        site_type (str, optional): The type of site to report on (default is 'National Park or Preserve').
+        parks_filepath (str, optional): Path to the parks data file (default is 'extracted_parks.jsonl').
+        alerts_filepath (str, optional): Path to the alerts data file (default is 'extracted_alerts.jsonl').
+        activities_filepath (str, optional): Path to the activities data file (default is 'extracted_activities.jsonl').
+        map_filename (str, optional): The filename for the generated map (default is 'map.html').
+    """
+    # Load and merge the data
+    df = load_and_merge(parks_filepath, alerts_filepath, activities_filepath)
+    # Generate the report
+    load_into_report(df=df, site_type=site_type)
+    # generate map
+    generate_and_upload_map(df=df, map_filename=map_filename)
+
+generate_report()
+```

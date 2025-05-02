@@ -1,0 +1,192 @@
+---
+title: NPS Report Artifact Example
+---
+
+<img src="https://www.nps.gov/cabr/blogs/images/Arrowhead_3.png" alt="NPS Logo" width="200" align="right">
+
+# NPS Scraping Report
+
+**Report Date:** 02-May-2025
+
+**Total Alerts Collected:** 645
+
+**Site Type:** National Park or Preserve
+
+<br><br>
+
+## ⚠️ Most Common Alert Types
+
+The most frequently occurring alert types were:
+
+| Category     |   Count |
+|:-------------|--------:|
+| Information  |     327 |
+| Park Closure |     182 |
+| Caution      |     122 |
+| Danger       |      14 |
+
+<br><br>
+
+## ❗ National Park or Preserve with the Most Alerts
+
+|    | Site Name                      | State(s)   | Site Website                       |   Avg. Sentiment |   Avg. Severity |   Number of Alerts |
+|---:|:-------------------------------|:-----------|:-----------------------------------|-----------------:|----------------:|-------------------:|
+|  1 | Everglades National Park       | FL         | https://www.nps.gov/ever/index.htm |       0.221978   |        1.72222  |                  9 |
+|  2 | Shenandoah National Park       | VA         | https://www.nps.gov/shen/index.htm |       0.0252875  |        0.75     |                  8 |
+|  3 | Cuyahoga Valley National Park  | OH         | https://www.nps.gov/cuva/index.htm |       0.00995714 |        2        |                  7 |
+|  4 | Carlsbad Caverns National Park | NM         | https://www.nps.gov/cave/index.htm |      -0.164714   |        0.571429 |                  7 |
+|  5 | North Cascades National Park   | WA         | https://www.nps.gov/noca/index.htm |      -0.0222     |        2.07143  |                  7 |
+|  6 | Saguaro National Park          | AZ         | https://www.nps.gov/sagu/index.htm |       0.0896     |        0.8      |                  5 |
+|  7 | Zion National Park             | UT         | https://www.nps.gov/zion/index.htm |      -0.19254    |        1.6      |                  5 |
+|  8 | White Sands National Park      | NM         | https://www.nps.gov/whsa/index.htm |       0.16462    |        1        |                  5 |
+|  9 | Lassen Volcanic National Park  | CA         | https://www.nps.gov/lavo/index.htm |      -0.19908    |        1.7      |                  5 |
+| 10 | Mount Rainier National Park    | WA         | https://www.nps.gov/mora/index.htm |       0.02632    |        2.1      |                  5 |
+
+<br><br>
+
+## 🚫 National Park or Preserve with Highest Alert Scores
+
+Using a scoring system that adjusts for both alert type and sentiment, we’ve identified the 10 sites currently facing the most serious issues:
+
+|    | Site Name                             | State(s)   | Site Website                       |   Avg. Sentiment |   Avg. Severity |   Alert Score |
+|---:|:--------------------------------------|:-----------|:-----------------------------------|-----------------:|----------------:|--------------:|
+|  1 | North Cascades National Park          | WA         | https://www.nps.gov/noca/index.htm |      -0.0222     |         2.07143 |        100    |
+|  2 | Cuyahoga Valley National Park         | OH         | https://www.nps.gov/cuva/index.htm |       0.00995714 |         2       |         96.17 |
+|  3 | Lassen Volcanic National Park         | CA         | https://www.nps.gov/lavo/index.htm |      -0.19908    |         1.7     |         79.2  |
+|  4 | Sequoia & Kings Canyon National Parks | CA         | https://www.nps.gov/seki/index.htm |      -0.305133   |         3       |         76.05 |
+|  5 | Guadalupe Mountains National Park     | TX         | https://www.nps.gov/gumo/index.htm |      -0.532367   |         2.16667 |         72.67 |
+|  6 | Everglades National Park              | FL         | https://www.nps.gov/ever/index.htm |       0.221978   |         1.72222 |         70.5  |
+|  7 | Hawaiʻi Volcanoes National Park       | HI         | https://www.nps.gov/havo/index.htm |      -0.07105    |         3       |         67.71 |
+|  8 | Zion National Park                    | UT         | https://www.nps.gov/zion/index.htm |      -0.19254    |         1.6     |         66.62 |
+|  9 | Mount Rainier National Park           | WA         | https://www.nps.gov/mora/index.htm |       0.02632    |         2.1     |         66.48 |
+| 10 | Mojave National Preserve              | CA         | https://www.nps.gov/moja/index.htm |       0.0550333  |         3       |         60.83 |
+
+<br><br>
+
+## ✅ National Park or Preserve with Highest Alert Scores
+
+Conversely, these 10 sites are currently facing the fewest and least serious issues:
+
+|    | Site Name                                    | State(s)   | Site Website                       |   Avg. Sentiment |   Avg. Severity |   Alert Score |
+|---:|:---------------------------------------------|:-----------|:-----------------------------------|-----------------:|----------------:|--------------:|
+|  1 | Gates Of The Arctic National Park & Preserve | AK         | https://www.nps.gov/gaar/index.htm |           0.4767 |             0.5 |          0    |
+|  2 | Isle Royale National Park                    | MI         | https://www.nps.gov/isro/index.htm |           0.6597 |             1   |          0.52 |
+|  3 | Joshua Tree National Park                    | CA         | https://www.nps.gov/jotr/index.htm |           0.6249 |             1   |          0.75 |
+|  4 | Death Valley National Park                   | CA,NV      | https://www.nps.gov/deva/index.htm |           0.25   |             0.5 |          0.75 |
+|  5 | Great Sand Dunes National Park & Preserve    | CO         | https://www.nps.gov/grsa/index.htm |           0.6167 |             1   |          0.8  |
+|  6 | Valles Caldera National Preserve             | NM         | https://www.nps.gov/vall/index.htm |           0.2263 |             0.5 |          0.83 |
+|  7 | Grand Teton National Park                    | WY         | https://www.nps.gov/grte/index.htm |           0.2263 |             0.5 |          0.83 |
+|  8 | Hot Springs National Park                    | AR         | https://www.nps.gov/hosp/index.htm |           0      |             0.5 |          1.58 |
+|  9 | New River Gorge National Park & Preserve     | WV         | https://www.nps.gov/neri/index.htm |           0      |             0.5 |          1.58 |
+| 10 | Haleakalā National Park                      | HI         | https://www.nps.gov/hale/index.htm |           0      |             0.5 |          1.58 |
+
+<br><br>
+
+## 🥾 Popular Activities at Top National Park or Preserve
+
+<img src="https://www.nps.gov/common/uploads/banner_image/imr/homepage/6427905B-FF1D-D650-14FAC11B82A47C0B.jpg?mode=crop&quality=90&width=1024&height=300" alt="Image at Site" width="500">
+
+### Great Sand Dunes National Park & Preserve
+- Arts and Culture
+- Astronomy
+- Auto and ATV
+- Biking
+- Camping
+- Climbing
+- Compass and GPS
+- Fishing
+- Food
+- Guided Tours
+- Hands-On
+- Hiking
+- Horse Trekking
+- Hunting and Gathering
+- Junior Ranger Program
+- Museum Exhibits
+- Park Film
+- Shopping
+- Skiing
+- Snow Play
+- Snowshoeing
+- Swimming
+- Tubing
+- Water Skiing
+- Wildlife Watching
+
+<br>
+<br>
+<img src="https://www.nps.gov/common/uploads/banner_image/akr/homepage/80BF2CBB-1DD8-B71B-0B0EE177F0BF9659.jpg?mode=crop&quality=90&width=1024&height=300" alt="Image at Site" width="500">
+
+### Gates Of The Arctic National Park & Preserve
+- Camping
+- Climbing
+- Hiking
+- Hunting and Gathering
+- Junior Ranger Program
+- Paddling
+
+<br>
+<br>
+<img src="https://www.nps.gov/common/uploads/banner_image/pwr/homepage/43327B46-CEE1-2592-5E47D7A73AE1AB5C.jpg?mode=crop&quality=90&width=1024&height=300" alt="Image at Site" width="500">
+
+### Death Valley National Park
+- Astronomy
+- Biking
+- Camping
+- Canyoneering
+- Flying
+- Food
+- Golf
+- Guided Tours
+- Hiking
+- Horse Trekking
+- Junior Ranger Program
+- Living History
+- Museum Exhibits
+- Park Film
+- Shopping
+- Wildlife Watching
+
+<br>
+<br>
+<img src="https://www.nps.gov/common/uploads/banner_image/mwr/homepage/1B26DB59-0094-466E-3CD53EE32E710E92.jpeg?mode=crop&quality=90&width=1024&height=300" alt="Image at Site" width="500">
+
+### Isle Royale National Park
+- Arts and Culture
+- Astronomy
+- Boating
+- Camping
+- Fishing
+- Flying
+- Food
+- Guided Tours
+- Hiking
+- Junior Ranger Program
+- Museum Exhibits
+- Paddling
+- Park Film
+- SCUBA Diving
+- Shopping
+- Wildlife Watching
+
+<br>
+<br>
+<img src="https://www.nps.gov/common/uploads/banner_image/pwr/homepage/DDAB86C3-CBAA-9B52-10E7FCF2839C3321.jpg?mode=crop&quality=90&width=1024&height=300" alt="Image at Site" width="500">
+
+### Joshua Tree National Park
+- Astronomy
+- Auto and ATV
+- Biking
+- Camping
+- Climbing
+- Food
+- Guided Tours
+- Hiking
+- Horse Trekking
+- Junior Ranger Program
+- Museum Exhibits
+- Shopping
+- Wildlife Watching
+
+<br>
+<br>

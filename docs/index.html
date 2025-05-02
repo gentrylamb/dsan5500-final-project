@@ -20,27 +20,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-/* CSS for citations */
-div.csl-bib-body { }
-div.csl-entry {
-  clear: both;
-  margin-bottom: 0em;
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
 }
-.hanging-indent div.csl-entry {
-  margin-left:2em;
-  text-indent:-2em;
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
 }
-div.csl-left-margin {
-  min-width:2em;
-  float:left;
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
-div.csl-right-inline {
-  margin-left:2em;
-  padding-left:1em;
-}
-div.csl-indent {
-  margin-left: 2em;
-}</style>
+</style>
 
 
 <script src="site_libs/clipboard/clipboard.min.js"></script>
@@ -62,12 +76,12 @@ div.csl-indent {
       .quarto-title-block .quarto-title-banner h5,
       .quarto-title-block .quarto-title-banner h6
       {
-        color: white;
+        color: black;
       }
 
       .quarto-title-block .quarto-title-banner {
-        color: white;
-background-image: url(assets/banner.png);
+        color: black;
+background-image: url(assets/banner.jpg);
 background-size: cover;
       }
 </style>
@@ -126,7 +140,17 @@ background-size: cover;
     <h2 id="toc-title">Table of contents</h2>
    
   <ul>
-  <li><a href="#section" id="toc-section" class="nav-link active" data-scroll-target="#section">Section</a></li>
+  <li><a href="#abstract" id="toc-abstract" class="nav-link active" data-scroll-target="#abstract">Abstract</a></li>
+  <li><a href="#introduction-problem-statement" id="toc-introduction-problem-statement" class="nav-link" data-scroll-target="#introduction-problem-statement">Introduction &amp; Problem Statement</a></li>
+  <li><a href="#etl-steps-overview" id="toc-etl-steps-overview" class="nav-link" data-scroll-target="#etl-steps-overview">ETL Steps Overview</a>
+  <ul class="collapse">
+  <li><a href="#extract" id="toc-extract" class="nav-link" data-scroll-target="#extract">Extract</a></li>
+  <li><a href="#transform" id="toc-transform" class="nav-link" data-scroll-target="#transform">Transform</a></li>
+  <li><a href="#load" id="toc-load" class="nav-link" data-scroll-target="#load">Load</a></li>
+  </ul></li>
+  <li><a href="#code-implementation" id="toc-code-implementation" class="nav-link" data-scroll-target="#code-implementation">Code &amp; Implementation</a></li>
+  <li><a href="#prefect-ui-and-artifacts" id="toc-prefect-ui-and-artifacts" class="nav-link" data-scroll-target="#prefect-ui-and-artifacts">Prefect UI and Artifacts</a></li>
+  <li><a href="#conclusion-future-work" id="toc-conclusion-future-work" class="nav-link" data-scroll-target="#conclusion-future-work">Conclusion &amp; Future Work</a></li>
   </ul>
 </nav>
 </div>
@@ -139,17 +163,125 @@ background-size: cover;
   
 
 
-<section id="section" class="level2">
-<h2 class="anchored" data-anchor-id="section">Section</h2>
-<p>This is a simple placeholder for the manuscript’s main document <span class="citation" data-cites="knuth84">(<a href="#ref-knuth84" role="doc-biblioref">Knuth 1984</a>)</span>.</p>
-
+<section id="abstract" class="level2">
+<h2 class="anchored" data-anchor-id="abstract">Abstract</h2>
+<p>In the digital era, data-driven decision-making is paramount, particularly when managing large-scale information flows such as alerts, park activities, and visitor data from the U.S. National Park Service (NPS). However, these data are dispersed across multiple APIs and formats, creating inefficiencies in how updates are retrieved, processed, and utilized. This project presents a robust Extract-Transform-Load (ETL) pipeline built using Python and Prefect that consolidates and streamlines the acquisition, validation, and reporting of NPS data.</p>
+<p>The core aim of the pipeline is to support informed trip planning and monitoring of national parks through an automated, reproducible workflow. The pipeline extracts data from the NPS Alerts, Activities, and Parks endpoints, validates and transforms it using Pydantic and Pandera to ensure schema compliance, and loads the cleaned data into structured Markdown reports. These reports can be tailored by state or park, ranked by alert severity, and integrated with user-defined preferences.</p>
+<p>By leveraging Prefect for orchestration, the pipeline is modular and observable. Individual tasks are implemented as decorated functions with clear dependencies and Sphinx-style docstrings. The Prefect UI provides visibility into execution, making it easier to troubleshoot failures or analyze runtime. A completion artifact is generated as a Markdown file summarizing the execution duration and the number of parks processed.</p>
+<p>This ETL pipeline not only improves efficiency in handling NPS data, but also serves as a reusable framework for integrating other public APIs or expanding user interactivity (e.g., through web dashboards). The current implementation is a Minimum Viable Product (MVP) tailored to the scope of the semester, with a roadmap for scaling to real-time email alerts or a trip planner web app. Through this project, we demonstrate the power of automation, data validation, and orchestration to deliver high-value public information tools.</p>
+</section>
+<section id="introduction-problem-statement" class="level2">
+<h2 class="anchored" data-anchor-id="introduction-problem-statement">Introduction &amp; Problem Statement</h2>
+<p>The current method for gathering information on national parks, such as alerts and activity availability, is largely manual. Users must visit multiple NPS web pages or APIs individually to get up-to-date information. This leads to:</p>
+<ul>
+<li><strong>Inefficiency:</strong> No centralized process for obtaining alerts or closures by location or user interest.</li>
+<li><strong>Fragmentation:</strong> Information about parks, activities, and alerts are retrieved separately with inconsistent formats.</li>
+<li><strong>Lack of validation:</strong> Data pulled from APIs may have missing fields or unexpected formats, risking downstream errors.</li>
+<li><strong>Poor user experience:</strong> Without integration, it’s hard to offer summaries or planning assistance for users.</li>
+</ul>
+<p>This ETL pipeline aims to resolve these issues by building a reproducible, automated workflow that collects, cleans, and summarizes data across the three major NPS endpoints. As a Minimum Viable Product, it focuses on:</p>
+<ul>
+<li>Automated retrieval of data via the NPS API.</li>
+<li>Validation of data structure using Pydantic and Pandera.</li>
+<li>Aggregation and ranking of parks by alert severity and content.</li>
+<li>Markdown report generation tailored by state or park.</li>
+<li>A completion artifact summarizing pipeline run details.</li>
+</ul>
+</section>
+<section id="etl-steps-overview" class="level2">
+<h2 class="anchored" data-anchor-id="etl-steps-overview">ETL Steps Overview</h2>
+<section id="extract" class="level3">
+<h3 class="anchored" data-anchor-id="extract">Extract</h3>
+<p>We use a parameterized <code>extract_from_api</code> function to pull JSON from NPS endpoints. Each request uses an API key, and supports queries by state or park code.</p>
+<p>Key points: - Rate-limiting is respected via sleep intervals. - Extracted data is immediately passed into transformation steps via Prefect task dependencies.</p>
+<p><strong>Validation Point:</strong> The raw response is not validated, but is quickly passed into transformation logic which performs schema checks.</p>
+</section>
+<section id="transform" class="level3">
+<h3 class="anchored" data-anchor-id="transform">Transform</h3>
+<p>The <code>transform_alerts_data</code>, <code>transform_parks_data</code>, and <code>transform_activities_data</code> functions process the raw data. Here:</p>
+<ul>
+<li>Unwanted fields are dropped.</li>
+<li>Dates are parsed into ISO format.</li>
+<li>Alert severities are classified.</li>
+<li>Pandera is used to validate park and alert schemas to ensure presence of required fields (<code>parkCode</code>, <code>title</code>, <code>description</code>, etc.)</li>
+</ul>
+<p>A custom Pydantic model is used to define the structure of park alerts, raising exceptions if required fields are missing or malformed.</p>
+</section>
+<section id="load" class="level3">
+<h3 class="anchored" data-anchor-id="load">Load</h3>
+<p>The pipeline uses Jinja2 templates to create human-readable Markdown files summarizing: - Park-level or state-level alerts. - Rankings of parks by alert severity. - Optional activities per park.</p>
+<p>A final artifact report logs: - Runtime duration - Number of parks processed - Number of alerts ranked</p>
+<p>Reports are saved locally as Markdown, but can easily be extended to PDF or emailed via SMTP in future work.</p>
+</section>
+</section>
+<section id="code-implementation" class="level2">
+<h2 class="anchored" data-anchor-id="code-implementation">Code &amp; Implementation</h2>
+<p>Here are sample tasks with docstrings (abbreviated here—full code provided in the appendix):</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> extract_alerts_data(state: <span class="bu">str</span>) <span class="op">-&gt;</span> List[Dict[<span class="bu">str</span>, Any]]:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">    Extract alert data from the NPS API for a given state.</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co">    Parameters</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co">    ----------</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co">    state : str</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co">        Two-letter state abbreviation.</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co">    -------</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co">    List[Dict[str, Any]]</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co">        A list of alert dictionaries for parks in the given state.</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    url <span class="op">=</span> <span class="ss">f"https://developer.nps.gov/api/v1/alerts?stateCode=</span><span class="sc">{</span>state<span class="sc">}</span><span class="ss">&amp;api_key=</span><span class="sc">{</span>API_KEY<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    response <span class="op">=</span> requests.get(url)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> response.json()[<span class="st">"data"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ParkAlert(BaseModel):</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    parkCode: <span class="bu">str</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    title: <span class="bu">str</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    description: <span class="bu">str</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    severity: <span class="bu">str</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> transform_alerts_data(alerts: List[Dict[<span class="bu">str</span>, Any]]) <span class="op">-&gt;</span> pd.DataFrame:</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">    Clean and validate alert data.</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co">    Parameters</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co">    ----------</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">    alerts : List[Dict[str, Any]]</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co">        Raw alert data from the API.</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="co">    -------</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co">    pd.DataFrame</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co">        A cleaned and validated DataFrame of alerts.</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> pd.DataFrame(alerts)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    df[<span class="st">"severity"</span>] <span class="op">=</span> df[<span class="st">"severity"</span>].<span class="bu">str</span>.lower()</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    validated_df <span class="op">=</span> alerts_schema.validate(df)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> validated_df</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="prefect-ui-and-artifacts" class="level2">
+<h2 class="anchored" data-anchor-id="prefect-ui-and-artifacts">Prefect UI and Artifacts</h2>
+<p><strong>Screenshots of Prefect UI:</strong> - Successful run flow for <code>full_pipeline(state='CA')</code> - Task execution duration for Extract → Transform → Load - Parameters used for a given run</p>
+<p><strong>Artifact example:</strong></p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Pipeline Summary</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Run Timestamp:** 2025-04-28 12:42 PM</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**State Processed:** CA</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Total Parks:** 41</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Total Alerts Retrieved:** 76</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Pipeline Duration:** 2.3 minutes</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>Report generated by <span class="in">`plan_your_trip_pipeline`</span>.</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="conclusion-future-work" class="level2">
+<h2 class="anchored" data-anchor-id="conclusion-future-work">Conclusion &amp; Future Work</h2>
+<p>This ETL pipeline demonstrates the effectiveness of combining Python, Prefect, and data validation tools like Pydantic and Pandera to streamline the process of gathering and utilizing public data. The MVP addresses inefficiencies in the manual handling of NPS data by offering automated summaries and recommendations.</p>
+<p>Future enhancements could include: - Adding SMTP functionality to email reports. - Deploying the flow on a schedule via Prefect Cloud. - Building a web dashboard for interactive trip planning. - Adding sentiment analysis for user-submitted reviews or alerts.</p>
+<p>By focusing on modularity, extensibility, and validation, this project lays the groundwork for a scalable, real-world public data application.</p>
 </section>
 
-<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" role="list">
-<div id="ref-knuth84" class="csl-entry" role="listitem">
-Knuth, Donald E. 1984. <span>“Literate Programming.”</span> <em>Comput. J.</em> 27 (2): 97–111. <a href="https://doi.org/10.1093/comjnl/27.2.97">https://doi.org/10.1093/comjnl/27.2.97</a>.
-</div>
-</div></section></div></main>
+</main>
 <!-- /main column -->
 <script id="quarto-html-after-body" type="application/javascript">
 window.document.addEventListener("DOMContentLoaded", function (event) {

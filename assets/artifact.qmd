@@ -1,7 +1,3 @@
----
-title: NPS Report Artifact Example
----
-
 <img src="https://www.nps.gov/cabr/blogs/images/Arrowhead_3.png" alt="NPS Logo" width="200" align="right">
 
 # NPS Scraping Report
